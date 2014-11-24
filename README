@@ -1,0 +1,24 @@
+@Author: 	Jeff Berube
+@ID:		4356171
+@Title:		BCFS (Block Chain File System) (Assignment #4 - CS3790)
+	
+
+@Description:	Mock file system
+
+
+@Compile:	To compile, type 
+
+		make 
+
+		inside program directory.
+
+
+@How to use:	Use the file system management utilities as follow
+
+			
+
+@Git:		To clone into directory, type
+
+		git clone https://github.com/jeffberube/BCFS.git
+
+		inside directory.
