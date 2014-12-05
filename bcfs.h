@@ -42,6 +42,7 @@ typedef short FAT[FATSIZE];
 typedef unsigned char BLOCK[BLOCKSIZE];
 
 typedef struct {
+	int free_space;
 	DIRECTORY dir;
 	FAT table;
 	BLOCK blocks[FATSIZE];
@@ -50,19 +51,19 @@ typedef struct {
 typedef struct {
 	BCFS *file_system;
 	int file_descriptor;
-	char permissions;
+	unsigned char *current_block;
 	int total;
-	BLOCK current_block;
 	int next;
-	char buffer[BUFFERSIZE];
+	BOOLEAN dirty;
 } STREAM;
 
 #define OPEN_PARTITION(flags) open(PARTITION_FILE, flags)
 
 BCFS *init_BCFS();
-STREAM *Sopen(char *, char *);
-int Sgetc(STREAM *);
-BOOLEAN Sputc(STREAM *, char);
+void close_BCFS(BCFS *);
+
+STREAM *Sopen(char *);
+BOOLEAN Sget_next_block(STREAM *);
 BOOLEAN Sclose(STREAM *);
 
 #endif

@@ -9,13 +9,13 @@ dir: dir.o bcfs.o
 	$(CC) $^ $(FLAGS) $@
 
 cat: cat.o bcfs.o
-	$(CC) $^ ($FLAGS) $@
+	$(CC) $^ $(FLAGS) $@
 
 delete: delete.o bcfs.o
-	$(CC) $^ ($FLAGS) $@
+	$(CC) $^ $(FLAGS) $@
 
 copy: copy.o bcfs.o
-	$(CC) $^ ($FLAGS) $@
+	$(CC) $^ $(FLAGS) $@
 
 .c.o:
 	$(CC) -g -c $<
