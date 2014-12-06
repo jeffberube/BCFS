@@ -33,7 +33,7 @@ typedef enum {
 
 typedef struct {
 	char name[FILELENGTH];
-	short start;
+	signed short start;
 	short size;
 } direntry;
 
@@ -51,6 +51,7 @@ typedef struct {
 typedef struct {
 	BCFS *file_system;
 	int file_descriptor;
+	int current_block_index;
 	unsigned char *current_block;
 	int total;
 	int next;
@@ -62,8 +63,8 @@ typedef struct {
 BCFS *init_BCFS();
 void close_BCFS(BCFS *);
 
-STREAM *Sopen(char *);
-BOOLEAN Sget_next_block(STREAM *);
+STREAM *Sopen(BCFS *, char *);
+void Swrite_buffer(STREAM *, int, char *);
 BOOLEAN Sclose(STREAM *);
 
 #endif

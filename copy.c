@@ -29,20 +29,32 @@ void cp_local_to_fs(char *local_file, char *fs_file) {
 
 	int source, source_size;
 
+	/* Make sure source exists */
 	if ((source = open(local_file, O_RDONLY)) < 0) {
 		printf("ERROR: Could not find file %s\n", local_file);
 		exit;
  	}
 
+	/* Get size of source */
 	lseek(source, 0L, SEEK_END);
-	source_size = lseek(source, 0L, SEEK_CUR);
+	source_size = lseek(source, 0L, SEEK_CUR) + 1;
 	lseek(source, 0L, SEEK_SET);
+
+	char *buffer = malloc(source_size * sizeof(char) + 1);
+	read(source, buffer, source_size);
+
+	/* Create a new file */
+	if (new_file_BCFS(fs_file + 5, source_size, buffer) < 0) {
+		printf("ERROR: Could not create file.\n");
+		exit(1);
+	}
 
 }
 
 void cp_fs_to_local(char *fs_file, char *local_file) {
 
-	STREAM *source = Sopen(fs_file+5); 
+	BCFS *file_system = init_BCFS();
+	STREAM *source = Sopen(file_system, fs_file+5); 
 
 	int dest_flags = O_WRONLY | O_TRUNC | O_CREAT;
 	mode_t dest_permissions = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
@@ -94,6 +106,7 @@ int main(int argc, char *argv[]) {
 
 	/* Local to BCFS */		
 	} else if (!strstr(argv[1], fsflag)) {
+		cp_local_to_fs(argv[1], argv[2]);
 
 	/* BCFS to local */	
 	} else if (!strstr(argv[2], fsflag)) {

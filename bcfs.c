@@ -8,6 +8,35 @@
 #include "bcfs.h"
 
 /*
+ * Sget_next_block
+ *
+ * Gets the next block in the stream
+ *
+ * INPUT:
+ *		STREAM *stream			Pointer to a stream
+ *
+ * RETURNS:
+ *		Returns TRUE if successful, FALSE if no more blocks 
+ *
+ */
+
+BOOLEAN get_next_block(STREAM *stream) {
+
+	BCFS *fs = stream->file_system;
+	int index = stream->current_block_index;
+
+	if (fs->table[index] < 0) 
+		return FALSE;
+	else {
+		stream->current_block_index = fs->table[index];
+		stream->current_block = fs->blocks[stream->current_block_index];	
+		return TRUE;
+	}
+
+}
+
+
+/*
  * get_file_descriptor
  *
  * Returns the index of the starting block in the fat table
@@ -27,35 +56,45 @@ static int get_file_descriptor(BCFS *file_system, char *filename) {
 	int file_descriptor = -1;
 
 	while (i < DIRSIZE) {
-	
-		if (file_system->dir[i].start == -1) {
-			i++;
-			continue;
+
+		if (!strcmp(file_system->dir[i].name, filename)) {
+			file_descriptor = i;
+			break;
 		}
 		
-		int j = 0;
-
-		while (j < 12) { 
-	
-			if (file_system->dir[i].name[j] != *(filename + j)) 
-				goto next_iteration;
-			else 
-				j++;
-	
-		}
-
-		file_descriptor = i;
-		break;
-
-		next_iteration:
-			i++;
+		i++;
 
 	}
 
-	if (file_descriptor == -1)
-		printf("\nERROR: File not found.\n\n");
-
 	return file_descriptor;
+
+}
+
+/*
+ * get_next_free_dir_index
+ *
+ * Gets the index of the next free index in the directory list
+ *
+ * INPUT:
+ *		BCFS *file_system			Pointer to file system 
+ *
+ * RETURNS:
+ *		Index of first empty directory in directory list 
+ *
+ */
+
+static int get_next_free_dir_index(BCFS *file_system) {
+
+	int i = 0;
+
+	while (i < DIRSIZE) {
+		if (file_system->dir[i].start == -1) 
+			return i;
+		else
+			i++;
+	}	
+
+	return -1;
 
 }
 
@@ -76,11 +115,18 @@ static int get_next_free_block_index(BCFS *file_system) {
 
 	int i = 0;
 
-	while (i < FATSIZE) if (file_system->table[i] == -2) return i;	
+	while (i < FATSIZE) {
+		printf("FAT %d: %d\n", i, file_system->table[i]);
+		if (file_system->table[i] == -2) 
+			return i;
+		else 
+			i++;
+	}	
 
 	return -1;
 
 }
+
 
 
 /*
@@ -100,15 +146,18 @@ static int get_next_free_block_index(BCFS *file_system) {
 
 static int alloc_space(BCFS *file_system, int size) {
 
+	int total = size;
+	
 	int first_block = get_next_free_block_index(file_system);
-	int total = size - BLOCKSIZE;
+	file_system->table[first_block] = -1;
 
 	int prev_block = first_block;
-	int next_block = -1;
+	int next_block;
 
 	while (total > 0) {
 		next_block = get_next_free_block_index(file_system);
 		file_system->table[prev_block] = next_block;
+		file_system->table[next_block] = -1;
 		prev_block = next_block;
 		total -= BLOCKSIZE;
 	}
@@ -161,14 +210,14 @@ BCFS *init_BCFS() {
 	int partition_file = OPEN_PARTITION(READ); 
 
 	if (partition_file < 0) {
-		printf("\nERROR: Failed to open partition file.\n\n");
+		printf("ERROR: Failed to open partition file.\n");
 		return NULL;
 	}
 	
 	BCFS *file_system = malloc(sizeof(BCFS));
 	
 	if (read(partition_file, file_system, sizeof(BCFS)) < 0) {
-		printf("\nERROR: Couldn't read partition file.\n\n");
+		printf("ERROR: Couldn't read partition file.\n");
 		return NULL;
 	} else
 		close(partition_file);	
@@ -208,12 +257,12 @@ inline void close_BCFS(BCFS *fs) {
  *
  */
 
-BOOLEAN save_BCFS(BCFS *fs) {
+BOOLEAN save_BCFS(BCFS *file_system) {
 
 	int partition_file = OPEN_PARTITION(WRITE);
 		
-	if (write(partition_file, fs, sizeof(BCFS))) {
-		printf("\nERROR: Could not save modifications.\n\n");
+	if (!write(partition_file, file_system, sizeof(BCFS))) {
+		printf("ERROR: Could not save modifications.\n");
 		return FALSE;
 	}
 
@@ -227,7 +276,6 @@ BOOLEAN save_BCFS(BCFS *fs) {
  * Attempts to create a new file in the file system
  *
  * INPUT:
- *		BCFS *file_system		Pointer to file system to create file into
  *		char *filename			Filename of file to create. Maximum 12 characters.
  *		int size				Size of file to create
  *		char *buffer			Pointer to data to put inside of file
@@ -237,9 +285,47 @@ BOOLEAN save_BCFS(BCFS *fs) {
  *
  */
 
-int new_file_BCFS(BCFS *fs, char *filename, int size, char *buffer) {
+int new_file_BCFS(char *filename, int size, char *buffer) {
 
+	BCFS *file_system = init_BCFS();
+
+	STREAM *file = Sopen(file_system, filename);
+	if (file) {
+		printf("ERROR: File already exists. Choose a different name.\n");
+		Sclose(file);
+		return -1;
+	}	
+
+	if (strlen(filename) > 12) {
+		printf("ERROR: File name is too long. Maximum 12 characters.\n");
+		return -1;
+	}	
+
+	file_system = init_BCFS();
+	int index = get_next_free_dir_index(file_system);
+
+	if (index < 0) {
+		printf("ERROR: Maximum number of entries reached.\n");
+		return -1;
+	}	
+
+	int start = request_space(file_system, size);
 	
+	if (start < 0) {
+		printf("ERROR: Not enough space.");
+		return -1;
+	}	
+
+	strcpy(file_system->dir[index].name, filename);
+	file_system->dir[index].start = start;
+	file_system->dir[index].size = size;
+	
+	file = Sopen(file_system, filename);
+	Swrite_buffer(file, size, buffer);
+	save_BCFS(file_system);
+	Sclose(file);
+
+	return index;
 
 }
 
@@ -251,71 +337,63 @@ int new_file_BCFS(BCFS *fs, char *filename, int size, char *buffer) {
  *
  * INPUT:
  *		char *filename			Name of file to create a stream for
- *		char *permission		Permission flags
  *
  * RETURNS:
  *		A pointer to a stream for the requested file or null if file was not found.
  *
  */
 
-STREAM *Sopen(char *filename) {
+STREAM *Sopen(BCFS *file_system, char *filename) {
 
-	STREAM *stream;
+	STREAM *stream = malloc(sizeof(STREAM));
 	BCFS *fs;
 	int fd;
 
-	if (!(stream->file_system = init_BCFS())) return NULL;
-	
-	if ((stream->file_descriptor = get_file_descriptor(stream->file_system, filename)) < 0) {
-		
-		close_BCFS(stream->file_system);
+	if (!(stream->file_system = file_system)) 
 		return NULL;
-	
+	else if ((stream->file_descriptor = get_file_descriptor(file_system, filename)) < 0) {
+		return NULL;
 	} else {
-		
 		fs = stream->file_system;
 		fd = stream->file_descriptor;
 
-		stream->current_block = fs->blocks[fd];
-		stream->total = fs->dir[stream->file_descriptor].size;
+		stream->current_block_index = fs->dir[fd].start;
+		stream->current_block = fs->blocks[fs->dir[fd].start];
+		stream->total = fs->dir[fd].size;
 		stream->next = 0;
 		stream->dirty = FALSE;
-
 	}
 
 	return stream;
 
 }
 
-
 /*
- * Sget_next_block
+ * Swrite_buffer
  *
- * Gets the next block in the stream
+ * Writes buffer to file
  *
  * INPUT:
- *		STREAM *stream			Pointer to a stream
- *
- * RETURNS:
- *		Returns TRUE if successful, FALSE if no more blocks 
+ *		STREAM *stream			Pointer to stream to write to
+ *		int size				Size of buffer to write
+ *		char *buffer			Buffer to copy into stream
  *
  */
 
-BOOLEAN Sget_next_block(STREAM *stream) {
+void Swrite_buffer(STREAM *stream, int size, char *buffer) {
 
-	BCFS *fs = stream->file_system;
-	int fd = fs->table[stream->file_descriptor];
+	int i = 0;
+	int bytes_in_block = size;
 
-	if (fd < 0) 
-		return FALSE;
-	else {
-		stream->file_descriptor = fd;
-		stream->current_block = fs->blocks[fd];	
-		return TRUE;
+	while (i < size && buffer[i]) {
+		bytes_in_block = size - i >= BLOCKSIZE ? BLOCKSIZE : size - i;
+		printf("i:%d size:%d s:%.512s", i, bytes_in_block, (buffer + i));
+		memcpy(stream->current_block, (buffer + i), bytes_in_block);
+		i += BLOCKSIZE;
+		get_next_block(stream);
 	}
 
 }
-
 
 /*
  * Sclose

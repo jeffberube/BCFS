@@ -35,9 +35,21 @@ int main(int argc, char *argv[]) {
 
 	/* Write file system structure to partition file */
 	BCFS *file_system = malloc(sizeof(BCFS));
+	memset(file_system, 0, sizeof(BCFS));
 
 	file_system->free_space = FATSIZE * BLOCKSIZE;
-	memset(file_system->table, -2, sizeof(file_system->table));
+	
+	int i = 0;
+	while (i < DIRSIZE) {
+		file_system->dir[i].start = -1;
+		i++;
+	}
+
+	i = 0;
+	while (i < FATSIZE) {
+		file_system->table[i] = -2;
+		i++;
+	}
 
 	int bytes = write(partition_file, file_system, sizeof(BCFS));
 	
