@@ -27,7 +27,8 @@ void show_help() {
 int main(int argc, char *argv[]) {
 
 	/* If no arguments specified or option -h, display help and exit */
-	if (argc == 1 || (argc == 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")))) {
+	if (argc == 1 || (argc == 2 && 
+				(!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")))) {
 		show_help();
 		return 0;
 	}
@@ -35,7 +36,10 @@ int main(int argc, char *argv[]) {
 	BCFS *file_system = init_BCFS();
 	STREAM *file = Sopen(file_system, argv[1]);
 
-	if (!file) return 1;
+	if (!file) {
+		printf("ERROR: Could not find file %s", argv[1]);
+		return 1;
+	}
 
 	int i = 0;
 

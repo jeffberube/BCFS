@@ -7,6 +7,7 @@
 
 #include "bcfs.h"
 
+
 /*
  * show_help
  *
@@ -21,9 +22,23 @@ void show_help() {
 	printf("Copies a file from source to destination.\n");
 	printf("To copy to or from the BCFS file system, simply prefix the filename with 'bcfs:'\n\n");
 
+	printf("Example: ./copy README bcfs:README\n\n");
+
 	printf("Options:\n\t-h, --help\t\tDisplay this information\n");
 
 }
+
+
+/*
+ * cp_local_to_fs
+ *
+ * Copies a file from local file system to BCFS file system
+ *
+ * INPUT:
+ *		char *local_file		Name of the local file
+ *		char *fs_file			Name of the file to create
+ *
+ */
 
 void cp_local_to_fs(char *local_file, char *fs_file) {
 
@@ -51,22 +66,88 @@ void cp_local_to_fs(char *local_file, char *fs_file) {
 
 }
 
+
+/*
+ * cp_fs_to_local
+ *
+ * Copies a file from the BCFS file system to local file system.
+ * Pipes the output of the cat executable part of this package.
+ *
+ * INPUT:
+ *		char *local_file		Name of the local file
+ *		char *fs_file			Name of the file to create
+ *
+ */
+
 void cp_fs_to_local(char *fs_file, char *local_file) {
 
-	BCFS *file_system = init_BCFS();
-	STREAM *source = Sopen(file_system, fs_file+5); 
+	char cat[] = "./cat ";
+	char redirection_operator[] = " > ";
 
-	int dest_flags = O_WRONLY | O_TRUNC | O_CREAT;
-	mode_t dest_permissions = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-	
-	int dest = open(local_file, dest_flags, dest_permissions);
+	int fs_file_len = strlen(fs_file);
+	int local_file_len = strlen(local_file);
+	int cat_len = strlen(cat);
+	int ro_len = strlen(redirection_operator);
 
-	if (dest < 0) {
-		printf("ERROR: Could not create/modify file %s\n", local_file);
-		exit(1);
-	}
+	char *command = malloc(cat_len + fs_file_len + ro_len + local_file_len + 1);
+
+	/* Build command for shell to execute */	
+	strcpy(command, cat);
+	strcat(command, (fs_file + 5));
+	strcat(command, redirection_operator);
+	strcat(command, local_file);
+
+	system(command);
+
+	free(command);
 
 }
+
+
+/*
+ * cp_fs_to_fs
+ *
+ * Copies a file from the BCFS file system to local file system.
+ * Pipes the output of the cat executable part of this package.
+ *
+ * INPUT:
+ *		char *source_file			Name of the source file
+ *		char *destination_file		Name of the file to create
+ *
+ */
+
+void cp_fs_to_fs(char *source_file, char *destination_file) {
+
+	BCFS *file_system = init_BCFS();
+	STREAM *file = Sopen(file_system, (source_file + 5));
+
+	if (!file) {
+		printf("ERROR: Could not find file %s", (source_file + 5));
+		exit(1);
+	}
+	
+	char *buffer = malloc(((file->total / BLOCKSIZE) + 1) * BLOCKSIZE);
+	memset(buffer, 0, file->total + 1);
+
+	int i = 0;
+
+	while (i < file->total) {
+		memcpy((buffer + i), file->current_block, BLOCKSIZE);
+		get_next_block(file);
+		i += BLOCKSIZE;
+	}
+
+	int buffer_size = file->total;
+	Sclose(file);
+
+	/* Create a new file */
+	if (new_file_BCFS(destination_file + 5, buffer_size, buffer) < 0) {
+		printf("ERROR: Could not create file.\n");
+		exit(1);
+	}
+	
+}
+
 
 /*
  * cp_local_to_local
@@ -75,10 +156,10 @@ void cp_fs_to_local(char *fs_file, char *local_file) {
  *
  */
 
-void cp_local_to_local(char *file1, char *file2) {
+void cp_local_to_local(char *source_file, char *destination_file) {
 	
 	char cmd[] = "cp";
-	char *cpargs[] = {"cp", file1, file2, NULL};
+	char *cpargs[] = {"cp", source_file, destination_file, NULL};
 
 	execvp(cmd, cpargs);
 
@@ -86,12 +167,13 @@ void cp_local_to_local(char *file1, char *file2) {
 
 int main(int argc, char *argv[]) {
 
-	/* If no arguments specified or option -h, display help and exit */
+	/* If no arguments specified or option -h or --help, display help and exit */
 	if (argc == 1 || (argc == 2 && 
 				(!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")))) {
-	   	
 		show_help();
 		return 0;
+	
+	/* If not enough arguments */
 	} else if (argc == 2) {
 		printf("Invalid number of arguments.\nType ./copy --help for help\n");
 		return 1;
@@ -101,7 +183,6 @@ int main(int argc, char *argv[]) {
 
 	/* Local to local */
 	if (!strstr(argv[1], fsflag) && !strstr(argv[2], fsflag)) {
-	
 		cp_local_to_local(argv[1], argv[2]);
 
 	/* Local to BCFS */		
@@ -110,11 +191,11 @@ int main(int argc, char *argv[]) {
 
 	/* BCFS to local */	
 	} else if (!strstr(argv[2], fsflag)) {
-	
+		cp_fs_to_local(argv[1], argv[2]);	
 
 	/* BCFS to BCFS */
 	} else {
-	
+		cp_fs_to_fs(argv[1], argv[2]);	
 	}
 
 	return 0;

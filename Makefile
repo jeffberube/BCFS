@@ -2,6 +2,8 @@ CC = gcc
 OBJ = format.o dir.o cat.o delete.o copy.o bcfs.o
 FLAGS = -Wall -std=c99 -g -o
 
+all: format dir cat delete copy
+
 format: format.o bcfs.o
 	$(CC) $^ $(FLAGS) $@
 

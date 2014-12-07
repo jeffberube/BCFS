@@ -70,6 +70,7 @@ static int get_file_descriptor(BCFS *file_system, char *filename) {
 
 }
 
+
 /*
  * get_next_free_dir_index
  *
@@ -116,7 +117,6 @@ static int get_next_free_block_index(BCFS *file_system) {
 	int i = 0;
 
 	while (i < FATSIZE) {
-		printf("FAT %d: %d\n", i, file_system->table[i]);
 		if (file_system->table[i] == -2) 
 			return i;
 		else 
@@ -312,14 +312,15 @@ int new_file_BCFS(char *filename, int size, char *buffer) {
 	int start = request_space(file_system, size);
 	
 	if (start < 0) {
-		printf("ERROR: Not enough space.");
+		printf("ERROR: Not enough space.\n");
 		return -1;
 	}	
 
 	strcpy(file_system->dir[index].name, filename);
 	file_system->dir[index].start = start;
 	file_system->dir[index].size = size;
-	
+	file_system->free_space -= size;
+
 	file = Sopen(file_system, filename);
 	Swrite_buffer(file, size, buffer);
 	save_BCFS(file_system);
@@ -387,7 +388,6 @@ void Swrite_buffer(STREAM *stream, int size, char *buffer) {
 
 	while (i < size && buffer[i]) {
 		bytes_in_block = size - i >= BLOCKSIZE ? BLOCKSIZE : size - i;
-		printf("i:%d size:%d s:%.512s", i, bytes_in_block, (buffer + i));
 		memcpy(stream->current_block, (buffer + i), bytes_in_block);
 		i += BLOCKSIZE;
 		get_next_block(stream);

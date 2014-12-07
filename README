@@ -8,14 +8,22 @@
 
 @Compile:	To compile, type 
 
-		make 
+		make all 
 
 		inside program directory.
 
 
-@How to use:	Use the file system management utilities as follow
+@How to use:	Possible commands:
 
-			
+		./format
+		./copy
+		./dir
+		./cat
+		./delete
+
+		To get help with a command, simply type the command with no argument
+		or <COMMAND> -h or <COMMAND> --help excepted format which has no help.
+
 
 @Git:		To clone into directory, type
 
